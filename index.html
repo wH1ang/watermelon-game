@@ -4,30 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>合成大西瓜 🍉</title>
-<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
-<script>
-// Multi-CDN fallback for China users
-if(typeof Matter==='undefined'){
-  document.write('<script src="https://cdnjs.loli.net/ajax/libs/matter-js/0.19.0/matter.min.js"><\/script>');
-}
-</script>
-<style>
-  /* Loading splash */
-  .loading-screen{position:fixed;inset:0;background:#0f0a1e;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:#fff;font-family:-apple-system,'PingFang SC',sans-serif;transition:opacity .3s}
-  .loading-screen.hidden{opacity:0;pointer-events:none;transition:opacity .3s}
-  .loading-screen.removed{display:none}
-  .loading-screen .loader{width:48px;height:48px;border:3px solid rgba(255,255,255,.1);border-top-color:#ff9f43;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .loading-screen p{font-size:.85rem;color:rgba(255,255,255,.4)}
-</style>
+<script src="https://cdnjs.loli.net/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>if(typeof Matter==='undefined')document.write('<script src="https://cdn.bootcdn.net/ajax/libs/matter-js/0.19.0/matter.min.js"><\/script>')</script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0d0d1a;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
-  .game-wrapper{position:fixed;top:0;left:50%;transform:translateX(-50%);width:100vw;height:100vh;max-width:420px;overflow:hidden}
-  canvas{display:block;position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+  body{
+    background:#0d0d1a;display:flex;justify-content:center;align-items:center;
+    min-height:100vh;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none
+  }
+  .game-wrapper{position:relative;width:100%;max-width:400px;height:100vh;max-height:750px;margin:0 auto;overflow:hidden}
+  canvas{display:block;width:100%;height:100%;border-radius:0}
 
   /* ==== HUD ==== */
-  .hud{position:absolute;top:10px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:10;padding:0 4px;height:40px}
+  .hud{position:absolute;top:10px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:10;padding:0 4px}
   .score-box{background:rgba(255,255,255,.08);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:8px 16px;min-width:80px}
   .score-box .label{font-size:.65rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.08em}
   .score-box .value{font-size:1.4rem;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
@@ -83,12 +73,6 @@ if(typeof Matter==='undefined'){
 </style>
 </head>
 <body>
-<!-- Loading Screen -->
-<div class="loading-screen" id="loadingScreen">
-  <div class="loader"></div>
-  <p>🍉 加载中...</p>
-</div>
-
 <div class="game-wrapper" id="app">
   <div class="top-bar"></div>
   <canvas id="gameCanvas"></canvas>
@@ -148,10 +132,18 @@ const { Engine, Render, Runner, Bodies, Body, Events, Composite, Mouse, MouseCon
 // =============================================
 const canvas = document.getElementById('gameCanvas');
 const wrapper = document.getElementById('app');
-// Force body to viewport dimensions
-document.documentElement.style.height = '100%';
-document.body.style.height = '100%';
 let W, H;
+
+function resize() {
+  const rect = wrapper.getBoundingClientRect();
+  W = rect.width;
+  H = rect.height;
+  canvas.width = W;
+  canvas.height = H;
+}
+
+resize();
+window.addEventListener('resize', resize);
 
 const engine = Engine.create({
   enableSleeping: false,
@@ -176,19 +168,7 @@ function createWalls() {
   ];
   Composite.add(world, walls);
 }
-
-function resize() {
-  W = Math.min(window.innerWidth, 420);
-  H = window.innerHeight;
-  canvas.width = W;
-  canvas.height = H;
-  wrapper.style.width = W + 'px';
-  wrapper.style.height = H + 'px';
-  createWalls();
-}
-
-resize();
-window.addEventListener('resize', resize);
+createWalls();
 
 // =============================================
 // RENDER
@@ -290,7 +270,7 @@ function handleCollision(event) {
       Body.setAngularVelocity(newBody, (Math.random() - 0.5) * 0.1);
       // Play merge sound!
       playMergeSound(newIndex);
-            Composite.add(world, newBody);
+      Composite.add(world, newBody);
       fruits.push(newBody);
 
       const earned = FRUITS[newIndex].score;
@@ -958,17 +938,6 @@ updateScore = function() {
 // INIT
 // =============================================
 document.getElementById('nextFruit').textContent = FRUITS[nextIndex].emoji;
-
-// Hide loading screen immediately
-const loadingScreen = document.getElementById('loadingScreen');
-if (loadingScreen) {
-  loadingScreen.classList.add('removed');
-}
-
-// On error, still remove loading screen
-window.addEventListener('error', () => {
-  if (loadingScreen) loadingScreen.classList.add('hidden');
-});
 if (bestScore > 0) {
   document.getElementById('bestScore').textContent = `🏆 最高记录: ${bestScore}`;
 }
