@@ -4,9 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>合成大西瓜 🍉</title>
-<script src="https://cdnjs.loli.net/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-<script>if(typeof Matter==='undefined')document.write('<script src="https://cdn.bootcdn.net/ajax/libs/matter-js/0.19.0/matter.min.js"><\/script>')</script>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script>
+// Multi-CDN fallback for China users
+if(typeof Matter==='undefined'){
+  document.write('<script src="https://cdnjs.loli.net/ajax/libs/matter-js/0.19.0/matter.min.js"><\/script>');
+}
+</script>
 <style>
+  /* Loading splash */
+  .loading-screen{position:fixed;inset:0;background:#0f0a1e;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;color:#fff;font-family:-apple-system,'PingFang SC',sans-serif;transition:opacity .5s}
+  .loading-screen.hidden{opacity:0;pointer-events:none}
+  .loading-screen .loader{width:48px;height:48px;border:3px solid rgba(255,255,255,.1);border-top-color:#ff9f43;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading-screen p{font-size:.85rem;color:rgba(255,255,255,.4)}
+</style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{
     background:#0d0d1a;display:flex;justify-content:center;align-items:center;
@@ -73,6 +85,12 @@
 </style>
 </head>
 <body>
+<!-- Loading Screen -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="loader"></div>
+  <p>🍉 加载中...</p>
+</div>
+
 <div class="game-wrapper" id="app">
   <div class="top-bar"></div>
   <canvas id="gameCanvas"></canvas>
@@ -945,6 +963,18 @@ updateScore = function() {
 // INIT
 // =============================================
 document.getElementById('nextFruit').textContent = FRUITS[nextIndex].emoji;
+
+// Hide loading screen
+const loadingScreen = document.getElementById('loadingScreen');
+if (loadingScreen) {
+  loadingScreen.classList.add('hidden');
+  setTimeout(() => loadingScreen.remove(), 500);
+}
+
+// On error, still remove loading screen
+window.addEventListener('error', () => {
+  if (loadingScreen) loadingScreen.classList.add('hidden');
+});
 if (bestScore > 0) {
   document.getElementById('bestScore').textContent = `🏆 最高记录: ${bestScore}`;
 }
