@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>合成大西瓜 🍉</title>
+<script src="https://cdnjs.loli.net/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>if(typeof Matter==='undefined')document.write('<script src="https://cdn.bootcdn.net/ajax/libs/matter-js/0.19.0/matter.min.js"><\/script>')</script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:#0d0d1a;display:flex;justify-content:center;align-items:center;
+    min-height:100vh;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none
+  }
+  .game-wrapper{position:relative;width:100%;max-width:400px;height:100vh;max-height:750px;margin:0 auto;overflow:hidden}
+  canvas{display:block;width:100%;height:100%;border-radius:0}
+
+  /* ==== HUD ==== */
+  .hud{position:absolute;top:10px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:10;padding:0 4px}
+  .score-box{background:rgba(255,255,255,.08);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:8px 16px;min-width:80px}
+  .score-box .label{font-size:.65rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.08em}
+  .score-box .value{font-size:1.4rem;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+  .combo-box{background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.2);border-radius:14px;padding:8px 14px;text-align:right;opacity:0;transition:opacity .3s}
+  .combo-box.show{opacity:1}
+  .combo-box .value{font-size:1rem;font-weight:700;color:#ffd700}
+  .combo-box .label{font-size:.6rem;color:rgba(255,215,0,.6)}
+
+  .next-fruit{position:absolute;top:55px;right:12px;width:44px;height:44px;background:rgba(255,255,255,.06);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5rem;border:1px solid rgba(255,255,255,.08);pointer-events:none;z-index:10}
+
+  .music-btn{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:10;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:100px;padding:4px 14px;font-size:.7rem;color:rgba(255,255,255,.4);cursor:pointer;transition:.3s;font-family:inherit;pointer-events:auto;display:flex;align-items:center;gap:6px}
+  .music-btn:hover{background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)}
+  .music-btn.on{color:#ffd700;border-color:rgba(255,215,0,.2)}
+  .music-btn .note{font-size:.9rem;animation:noteSpin 3s linear infinite;display:inline-block}
+  .music-btn.on .note{animation:noteSpin 1s linear infinite}
+  @keyframes noteSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+
+  /* ==== GAME OVER ==== */
+  .game-over{position:absolute;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(16px);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:20;padding:30px}
+  .game-over.show{display:flex;animation:fadeIn .4s ease}
+  .game-over h2{font-size:2rem;color:#fff;margin-bottom:4px}
+  .game-over .sub{font-size:.9rem;color:rgba(255,255,255,.5);margin-bottom:20px}
+  .game-over .final-score{font-size:3.5rem;font-weight:700;color:#ffd700;margin-bottom:4px}
+  .game-over .final-label{font-size:.75rem;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+  .game-over .best-score{font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:24px}
+  .game-over .btn-restart{background:linear-gradient(135deg,#ff6b6b,#ee5a24);color:#fff;border:none;padding:14px 48px;border-radius:100px;font-size:1rem;font-weight:600;cursor:pointer;transition:transform .2s;margin-bottom:12px}
+  .game-over .btn-restart:active{transform:scale(.95)}
+  .game-over .btn-share{background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.1);padding:12px 40px;border-radius:100px;font-size:.9rem;cursor:pointer;transition:.2s}
+  .game-over .btn-share:active{background:rgba(255,255,255,.12)}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+  /* ==== TUTORIAL ==== */
+  .tutorial{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:15;pointer-events:none;opacity:0;transition:opacity .5s}
+  .tutorial.show{opacity:1}
+  .tutorial .hand{font-size:3rem;animation:bounce 1.2s infinite}
+  .tutorial p{color:rgba(255,255,255,.5);font-size:.8rem;text-align:center;margin-top:8px}
+  @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(12px)}}
+
+  /* ==== CONFETTI ==== */
+  .confetti-container{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:12}
+  .confetti{position:absolute;width:8px;height:8px;top:-10px;border-radius:2px;animation:confettiFall linear forwards}
+  @keyframes confettiFall{to{transform:translateY(100vh) rotate(720deg);opacity:0}}
+
+  /* ==== TOP BAR ==== */
+  .top-bar{position:absolute;top:0;left:0;right:0;height:48px;background:linear-gradient(180deg,rgba(0,0,0,.3),transparent);z-index:5;pointer-events:none}
+
+  /* responsive */
+  @media(max-height:650px){
+    .score-box{padding:5px 12px}
+    .score-box .value{font-size:1.1rem}
+    .game-over .final-score{font-size:2.8rem}
+  }
+</style>
+</head>
+<body>
+<div class="game-wrapper" id="app">
+  <div class="top-bar"></div>
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD -->
+  <div class="hud">
+    <div class="score-box"><div class="label">得分</div><div class="value" id="scoreDisplay">0</div></div>
+    <div class="combo-box" id="comboBox"><div class="value" id="comboDisplay">×2</div><div class="label">连击</div></div>
+  </div>
+  <div class="next-fruit" id="nextFruit">🍇</div>
+
+  <!-- Music Toggle -->
+  <button class="music-btn" id="musicBtn"><span class="note">🎵</span> 音乐</button>
+
+  <!-- Tutorial -->
+  <div class="tutorial" id="tutorial">
+    <div class="hand">👆</div>
+    <p>点击位置投放水果</p>
+  </div>
+
+  <!-- Game Over -->
+  <div class="game-over" id="gameOver">
+    <h2>游戏结束</h2>
+    <div class="sub">差一点就破纪录了</div>
+    <div class="final-score" id="finalScore">0</div>
+    <div class="final-label">最终得分</div>
+    <div class="best-score" id="bestScore">🏆 最高记录: 0</div>
+    <button class="btn-restart" onclick="restartGame()">🔄 再来一局</button>
+    <button class="btn-share" onclick="shareScore()">📤 分享成绩</button>
+  </div>
+
+  <!-- Confetti -->
+  <div class="confetti-container" id="confettiContainer"></div>
+</div>
+
+<script>
+// =============================================
+// FRUIT DATA
+// =============================================
+const FRUITS = [
+  {name:'葡萄',emoji:'🍇',radius:18,score:1,color1:'#845ef7',color2:'#5b3cc4',color3:'#a277ff'},
+  {name:'樱桃',emoji:'🍒',radius:22,score:2,color1:'#ff4757',color2:'#c0392b',color3:'#ff6b81'},
+  {name:'橘子',emoji:'🍊',radius:28,score:4,color1:'#ff9f43',color2:'#e67e22',color3:'#ffbe76'},
+  {name:'柠檬',emoji:'🍋',radius:34,score:8,color1:'#feca57',color2:'#f9ca24',color3:'#ffdd59'},
+  {name:'猕猴桃',emoji:'🥝',radius:40,score:16,color1:'#2ed573',color2:'#1e8449',color3:'#7bed9f'},
+  {name:'番茄',emoji:'🍅',radius:46,score:32,color1:'#ff6348',color2:'#c0392b',color3:'#ff7979'},
+  {name:'桃子',emoji:'🍑',radius:52,score:64,color1:'#fd79a8',color2:'#e84393',color3:'#fab1a0'},
+  {name:'菠萝',emoji:'🍍',radius:58,score:128,color1:'#fdcb6e',color2:'#e17055',color3:'#ffeaa7'},
+  {name:'椰子',emoji:'🥥',radius:64,score:256,color1:'#b2bec3',color2:'#636e72',color3:'#dfe6e9'},
+  {name:'西瓜',emoji:'🍉',radius:72,score:512,color1:'#00b894',color2:'#006266',color3:'#55efc4'},
+];
+
+const { Engine, Render, Runner, Bodies, Body, Events, Composite, Mouse, MouseConstraint, Vector } = Matter;
+
+// =============================================
+// SETUP
+// =============================================
+const canvas = document.getElementById('gameCanvas');
+const wrapper = document.getElementById('app');
+let W, H;
+
+function resize() {
+  const rect = wrapper.getBoundingClientRect();
+  W = rect.width;
+  H = rect.height;
+  canvas.width = W;
+  canvas.height = H;
+}
+
+resize();
+window.addEventListener('resize', resize);
+
+const engine = Engine.create({
+  enableSleeping: false,
+  positionIterations: 16,
+  velocityIterations: 12
+});
+const world = engine.world;
+world.gravity.y = 1.8;
+
+// =============================================
+// WALLS (invisible)
+// =============================================
+const wallThick = 40;
+let walls = [];
+
+function createWalls() {
+  walls.forEach(w => Composite.remove(world, w));
+  walls = [
+    Bodies.rectangle(W/2, H + wallThick/2 - 10, W, wallThick, {isStatic:true,label:'floor',friction:0.5,restitution:0.1}),
+    Bodies.rectangle(-wallThick/2 + 5, H/2, wallThick, H, {isStatic:true,label:'left',friction:0.3}),
+    Bodies.rectangle(W + wallThick/2 - 5, H/2, wallThick, H, {isStatic:true,label:'right',friction:0.3}),
+  ];
+  Composite.add(world, walls);
+}
+createWalls();
+
+// =============================================
+// RENDER
+// =============================================
+const ctx = canvas.getContext('2d');
+const dropZoneY = 80;
+let score = 0;
+let bestScore = parseInt(localStorage.getItem('watermelonBest') || '0');
+let combo = 0;
+let fruits = [];
+let currentIndex = Math.floor(Math.random() * 5);
+let nextIndex = Math.floor(Math.random() * 5);
+let canDrop = true;
+let gameActive = true;
+let gameOverShown = false;
+
+// =============================================
+// FRUIT BODIES
+// =============================================
+function createFruitBody(index, x, y) {
+  const data = FRUITS[index];
+  const body = Bodies.circle(x, y, data.radius, {
+    restitution: 0.15,
+    friction: 0.8,
+    frictionAir: 0.001,
+    density: 0.003 + index * 0.0005,
+    label: 'fruit',
+    fruitIndex: index,
+    isSleeping: false,
+    collisionFilter: { group: 0, category: 0x0001, mask: 0xFFFF },
+    slop: 0.01
+  });
+  body.fruitIndex = index;
+  body.fruitEmoji = data.emoji;
+  body.fruitRadius = data.radius;
+  body.fruitColor1 = data.color1;
+  body.fruitColor2 = data.color2;
+  body.fruitColor3 = data.color3;
+  body.fruitScore = data.score;
+  body._spawnTime = Date.now();
+  body._scale = 0.01;
+  return body;
+}
+
+// =============================================
+// DROP FRUIT
+// =============================================
+function dropFruit(x) {
+  if (!canDrop || !gameActive) return;
+  canDrop = false;
+
+  const index = currentIndex;
+  const data = FRUITS[index];
+  const body = createFruitBody(index, x, dropZoneY);
+  Composite.add(world, body);
+  fruits.push(body);
+
+  // Show next
+  currentIndex = nextIndex;
+  nextIndex = Math.floor(Math.random() * 5);
+  document.getElementById('nextFruit').textContent = FRUITS[nextIndex].emoji;
+
+  setTimeout(() => { canDrop = true; }, 400);
+}
+
+// =============================================
+// MERGE HANDLING
+// =============================================
+function handleCollision(event) {
+  if (!gameActive) return;
+  let merged = false;
+  const removed = new Set();
+
+  for (const pair of event.pairs) {
+    const { bodyA, bodyB } = pair;
+    if (bodyA.label !== 'fruit' || bodyB.label !== 'fruit') continue;
+    if (bodyA.fruitIndex === undefined || bodyB.fruitIndex === undefined) continue;
+    // Skip if either body was already removed in this tick
+    if (removed.has(bodyA.id) || removed.has(bodyB.id)) continue;
+
+    const iA = bodyA.fruitIndex;
+    const iB = bodyB.fruitIndex;
+
+    if (iA === iB && iA < FRUITS.length - 1) {
+      merged = true;
+      const midX = (bodyA.position.x + bodyB.position.x) / 2;
+      const midY = (bodyA.position.y + bodyB.position.y) / 2;
+
+      Composite.remove(world, bodyA);
+      Composite.remove(world, bodyB);
+      removed.add(bodyA.id);
+      removed.add(bodyB.id);
+      fruits = fruits.filter(f => f !== bodyA && f !== bodyB);
+
+      const newIndex = iA + 1;
+      const newBody = createFruitBody(newIndex, midX, midY + 15); // offset down slightly
+      // Hard downward push to escape any overlapping bodies
+      Body.setVelocity(newBody, { x: (Math.random() - 0.5) * 1.5, y: 8 + Math.random() * 4 });
+      Body.setAngularVelocity(newBody, (Math.random() - 0.5) * 0.1);
+      // Play merge sound!
+      playMergeSound(newIndex);
+      // Disable collision briefly to let it fall out of overlaps
+      newBody.collisionFilter = { group: -1, category: 0x0001, mask: 0x0000 };
+      setTimeout(() => {
+        if (newBody && Composite.get(world, newBody.id)) {
+          newBody.collisionFilter = { group: 0, category: 0x0001, mask: 0xFFFF };
+        }
+      }, 100);
+      Composite.add(world, newBody);
+      fruits.push(newBody);
+
+      const earned = FRUITS[newIndex].score;
+      score += earned;
+      combo++;
+      updateScore();
+
+      if (combo >= 2) {
+        document.getElementById('comboDisplay').textContent = `×${combo}`;
+        const cb = document.getElementById('comboBox');
+        cb.classList.add('show');
+        clearTimeout(cb._timeout);
+        cb._timeout = setTimeout(() => cb.classList.remove('show'), 1500);
+      }
+
+      if (newIndex >= 7) spawnConfetti(midX, midY, newIndex);
+      if (newIndex === 9) {
+        setTimeout(() => spawnConfetti(W/2, H/3, 10), 100);
+        setTimeout(() => spawnConfetti(W/2, H/3, 10), 300);
+      }
+    }
+  }
+  if (!merged && event.pairs.length > 0) {
+    combo = 0;
+    document.getElementById('comboBox').classList.remove('show');
+  }
+}
+
+Events.on(engine, 'collisionStart', handleCollision);
+
+// =============================================
+// GAME OVER CHECK
+// =============================================
+Events.on(engine, 'beforeUpdate', () => {
+  if (!gameActive || gameOverShown) return;
+  const now = Date.now();
+  for (const f of fruits) {
+    // Skip newly spawned fruits (grace period 2.5s)
+    if (now - (f._spawnTime || 0) < 2500) continue;
+    // Only check if fruit is near the top and not moving upward fast
+    if (f.position.y < dropZoneY + 30 && f.fruitIndex >= 2) {
+      if (f.speed > 1.5 || Math.abs(f.velocity.y) > 2) continue;
+      gameActive = false;
+      gameOverShown = true;
+      playGameOverSound();
+      setTimeout(showGameOver, 500);
+      break;
+    }
+  }
+});
+
+// =============================================
+// UI UPDATES
+// =============================================
+function updateScore() {
+  document.getElementById('scoreDisplay').textContent = score;
+}
+
+function showGameOver() {
+  document.getElementById('finalScore').textContent = score;
+  if (score > bestScore) {
+    bestScore = score;
+    localStorage.setItem('watermelonBest', bestScore.toString());
+    document.querySelector('.game-over .sub').textContent = '🎉 新纪录！';
+  } else {
+    document.querySelector('.game-over .sub').textContent = '差一点就破纪录了';
+  }
+  document.getElementById('bestScore').textContent = `🏆 最高记录: ${bestScore}`;
+  document.getElementById('gameOver').classList.add('show');
+}
+
+// =============================================
+// RESTART
+// =============================================
+function restartGame() {
+  document.getElementById('gameOver').classList.remove('show');
+  // Clear fruits
+  for (const f of fruits) {
+    Composite.remove(world, f);
+  }
+  fruits = [];
+  score = 0;
+  combo = 0;
+  gameActive = true;
+  gameOverShown = false;
+  canDrop = true;
+  updateScore();
+  document.getElementById('comboBox').classList.remove('show');
+  currentIndex = Math.floor(Math.random() * 5);
+  nextIndex = Math.floor(Math.random() * 5);
+  document.getElementById('nextFruit').textContent = FRUITS[nextIndex].emoji;
+
+  // Clear confetti
+  document.getElementById('confettiContainer').innerHTML = '';
+}
+
+// =============================================
+// CONFETTI
+// =============================================
+function spawnConfetti(x, y, intensity) {
+  const container = document.getElementById('confettiContainer');
+  const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6b9d','#c44dff','#ff9a3c'];
+  const count = 10 + intensity * 4;
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti';
+    const size = 4 + Math.random() * 6;
+    el.style.width = size + 'px';
+    el.style.height = size * (0.4 + Math.random() * 0.6) + 'px';
+    el.style.left = (x + (Math.random() - 0.5) * 120) + 'px';
+    el.style.background = colors[Math.floor(Math.random() * colors.length)];
+    el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    el.style.animationDuration = (1.5 + Math.random() * 1.5) + 's';
+    el.style.animationDelay = Math.random() * 0.4 + 's';
+    el.style.transform = `rotate(${Math.random() * 360}deg)`;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+}
+
+// =============================================
+// SHARE
+// =============================================
+let GAME_URL = 'https://watermelon-game-opal.vercel.app';
+
+function shareScore() {
+  const text = `🍉 我在「合成大西瓜」得了 ${score} 分！你能超过我吗？\n\n${GAME_URL}`;
+  const shareContainer = document.getElementById('gameOver');
+
+  // Try Web Share API (mobile browsers)
+  if (navigator.share) {
+    navigator.share({ title: '合成大西瓜', text, url: GAME_URL }).catch(() => {});
+    return;
+  }
+
+  // Copy to clipboard + show WeChat prompt
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      showWeChatShare(text);
+    }).catch(() => showWeChatShare(text));
+  } else {
+    showWeChatShare(text);
+  }
+}
+
+function showWeChatShare(text) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:40px;animation:fadeIn .3s ease;font-family:-apple-system,'PingFang SC',sans-serif;
+  `;
+  overlay.innerHTML = `
+    <div style="background:#1c1c2e;border-radius:20px;padding:32px 28px;max-width:340px;width:100%;text-align:center;border:1px solid rgba(255,255,255,.08)">
+      <div style="font-size:3rem;margin-bottom:12px">🎮</div>
+      <h3 style="color:#fff;font-size:1.1rem;margin-bottom:8px">分享给朋友</h3>
+      <p style="color:rgba(255,255,255,.5);font-size:.85rem;margin-bottom:20px">链接已复制！发给朋友来挑战你的分数</p>
+      <div style="background:rgba(255,255,255,.04);border-radius:12px;padding:12px;margin-bottom:20px;word-break:break-all;font-size:.75rem;color:var(--gold, #ffd700);font-family:monospace">
+        ${text.replace(/\n/g, '<br>')}
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        <button onclick="this.closest('div[style]').remove()" style="background:linear-gradient(135deg,#ff6b6b,#ee5a24);color:#fff;border:none;padding:12px 32px;border-radius:100px;font-size:.9rem;font-weight:600;cursor:pointer">✅ 已复制，去微信粘贴</button>
+        <button onclick="this.closest('div[style]').remove()" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.1);padding:12px 20px;border-radius:100px;font-size:.85rem;cursor:pointer">关闭</button>
+      </div>
+      <p style="color:rgba(255,255,255,.3);font-size:.7rem;margin-top:16px">💡 在微信中长按链接即可打开</p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+// =============================================
+// DRAW
+// =============================================
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // ===== AMBIENT BACKGROUND =====
+  // Deep gradient sky
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, '#0f0a1e');
+  bgGrad.addColorStop(0.3, '#1a1040');
+  bgGrad.addColorStop(0.6, '#1a0a2e');
+  bgGrad.addColorStop(0.85, '#2d1b4e');
+  bgGrad.addColorStop(1, '#1a0a2e');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Warm glow from bottom (like a warm kitchen/restaurant vibe)
+  const warmGlow = ctx.createRadialGradient(W/2, H + 40, 0, W/2, H + 40, H * 0.7);
+  warmGlow.addColorStop(0, 'rgba(255, 180, 80, 0.08)');
+  warmGlow.addColorStop(0.4, 'rgba(255, 120, 50, 0.04)');
+  warmGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = warmGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle vignette
+  const vigGrad = ctx.createRadialGradient(W/2, H/2, H * 0.2, W/2, H/2, H * 0.8);
+  vigGrad.addColorStop(0, 'transparent');
+  vigGrad.addColorStop(1, 'rgba(0,0,0,.3)');
+  ctx.fillStyle = vigGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Floating particles
+  const time = Date.now() / 1000;
+  if (!window._particles) {
+    window._particles = [];
+    for (let i = 0; i < 20; i++) {
+      window._particles.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 1 + Math.random() * 2,
+        speed: 0.2 + Math.random() * 0.4,
+        drift: (Math.random() - 0.5) * 0.3,
+        opacity: 0.1 + Math.random() * 0.25,
+        hue: 30 + Math.random() * 30 // warm hues
+      });
+    }
+  }
+  for (const p of window._particles) {
+    p.y -= p.speed;
+    p.x += Math.sin(time * 0.5 + p.y * 0.01) * p.drift;
+    if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${p.hue}, 80%, 70%, ${p.opacity * (0.5 + 0.5 * Math.sin(time + p.x))})`;
+    ctx.fill();
+  }
+
+  // ===== GAME AREA =====
+  // Game zone subtle border glow
+  const zoneGlow = ctx.createLinearGradient(0, 0, 0, H);
+  zoneGlow.addColorStop(0, 'rgba(255,200,100,0.03)');
+  zoneGlow.addColorStop(0.5, 'transparent');
+  zoneGlow.addColorStop(1, 'rgba(255,200,100,0.05)');
+  ctx.fillStyle = zoneGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  // Wall lines
+  ctx.strokeStyle = 'rgba(255,255,255,.04)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(3, 0, W-6, H-1);
+
+  // Bottom wall accent
+  const floorGrad = ctx.createLinearGradient(0, H-16, 0, H);
+  floorGrad.addColorStop(0, 'transparent');
+  floorGrad.addColorStop(1, 'rgba(255,180,80,0.06)');
+  ctx.fillStyle = floorGrad;
+  ctx.fillRect(0, H-16, W, 16);
+
+  // Drop zone indicator
+  ctx.beginPath();
+  ctx.setLineDash([6, 8]);
+  ctx.strokeStyle = 'rgba(255,255,255,.08)';
+  ctx.lineWidth = 2;
+  ctx.moveTo(20, dropZoneY);
+  ctx.lineTo(W - 20, dropZoneY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw drop guide (ghost fruit)
+  if (canDrop && gameActive) {
+    const d = FRUITS[currentIndex];
+    const gr = d.radius;
+
+    // Target line
+    ctx.beginPath();
+    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = 'rgba(255,255,255,.06)';
+    ctx.lineWidth = 1;
+    ctx.moveTo(mouseX, dropZoneY + gr);
+    ctx.lineTo(mouseX, dropZoneY + gr + 40);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Ghost circle
+    ctx.globalAlpha = 0.2;
+    const gGrad = ctx.createRadialGradient(
+      mouseX - gr*0.2, dropZoneY - gr*0.2, 0,
+      mouseX, dropZoneY, gr
+    );
+    gGrad.addColorStop(0, d.color3);
+    gGrad.addColorStop(0.5, d.color1);
+    gGrad.addColorStop(1, d.color2);
+    ctx.beginPath();
+    ctx.arc(mouseX, dropZoneY, gr, 0, Math.PI * 2);
+    ctx.fillStyle = gGrad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.1)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Ghost emoji
+    ctx.globalAlpha = 0.5;
+    ctx.font = `${gr * 1.1}px "Apple Color Emoji","Segoe UI Emoji",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(d.emoji, mouseX, dropZoneY + 1);
+    ctx.globalAlpha = 1;
+
+    // Arrow indicator
+    ctx.globalAlpha = 0.3;
+    ctx.font = '16px sans-serif';
+    ctx.fillText('👇', mouseX, dropZoneY - gr - 12);
+    ctx.globalAlpha = 1;
+  }
+
+  // Draw walls (subtle)
+  ctx.strokeStyle = 'rgba(255,255,255,.03)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(2, 0, W-4, H-2);
+
+  // Draw fruits
+  for (const f of fruits) {
+    if (f.fruitIndex === undefined || !FRUITS[f.fruitIndex]) continue;
+    const d = FRUITS[f.fruitIndex];
+    const pos = f.position;
+    const r = f.fruitRadius || d.radius;
+    const scale = f._scale || 1;
+    const sr = r * scale;
+
+    // Shadow
+    ctx.beginPath();
+    ctx.arc(pos.x + 2, pos.y + 3, sr, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    ctx.fill();
+
+    // Main body - radial gradient
+    const grad = ctx.createRadialGradient(
+      pos.x - sr * 0.3, pos.y - sr * 0.3, sr * 0.1,
+      pos.x, pos.y, sr
+    );
+    grad.addColorStop(0, d.color3);
+    grad.addColorStop(0.4, d.color1);
+    grad.addColorStop(1, d.color2);
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, sr, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Border ring
+    ctx.strokeStyle = 'rgba(255,255,255,.12)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Shine highlight
+    ctx.beginPath();
+    ctx.ellipse(pos.x - sr * 0.25, pos.y - sr * 0.25, sr * 0.35, sr * 0.25, -0.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.2)';
+    ctx.fill();
+
+    // Small bright spot
+    ctx.beginPath();
+    ctx.arc(pos.x - sr * 0.35, pos.y - sr * 0.35, sr * 0.12, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.fill();
+
+    // Glow for higher level fruits
+    if (d.score >= 64) {
+      const glow = ctx.createRadialGradient(pos.x, pos.y, sr * 0.5, pos.x, pos.y, sr * 1.8);
+      glow.addColorStop(0, d.color1 + '25');
+      glow.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, sr * 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = glow;
+      ctx.fill();
+    }
+
+    // Emoji
+    ctx.save();
+    ctx.font = `${sr * 1.15}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,.3)';
+    ctx.shadowBlur = 3;
+    ctx.fillText(d.emoji, pos.x, pos.y + 1);
+    ctx.restore();
+
+    // Crown for winner
+    if (d.score >= 512) {
+      ctx.font = `${sr * 0.4}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('👑', pos.x, pos.y - sr - 4);
+    }
+  }
+
+  // Show tutorial hint (only when game just started)
+  document.getElementById('tutorial').classList.toggle('show', score === 0 && gameActive && fruits.length === 0);
+}
+
+// =============================================
+// INPUT
+// =============================================
+let mouseX = W / 2;
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = Math.max(40, Math.min(W - 40, (e.clientX - rect.left) * (W / rect.width)));
+});
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.max(40, Math.min(W - 40, (e.clientX - rect.left) * (W / rect.width)));
+  dropFruit(x);
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.max(40, Math.min(W - 40, (touch.clientX - rect.left) * (W / rect.width)));
+  dropFruit(x);
+}, {passive: false});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  mouseX = Math.max(40, Math.min(W - 40, (touch.clientX - rect.left) * (W / rect.width)));
+}, {passive: false});
+
+// =============================================
+// GAME LOOP
+// =============================================
+function gameLoop() {
+  if (gameActive) {
+    Engine.update(engine, 1000 / 60);
+    // Animate fruit pop-in & anti-float
+    for (const f of fruits) {
+      if (f._scale < 1) {
+        f._scale = Math.min(1, f._scale + 0.08);
+      }
+      // Anti-float: detect stuck fruits (near-zero velocity but not at bottom)
+      if (f._spawnTime && Date.now() - f._spawnTime > 2000 && f.position.y < H - 60) {
+        const vy = Math.abs(f.velocity.y);
+        const vx = Math.abs(f.velocity.x);
+        if (vy < 0.08 && vx < 0.08) {
+          // Stuck! Give it a hard shove
+          Body.setVelocity(f, { x: (Math.random() - 0.5) * 2, y: 4 + Math.random() * 3 });
+          Body.setAngularVelocity(f, (Math.random() - 0.5) * 0.15);
+        }
+      }
+    }
+  }
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+// =============================================
+// MUSIC SYSTEM (Web Audio API - Original Composition)
+// =============================================
+const Music = {
+  ctx: null,
+  playing: false,
+  bpm: 110,
+  comboBoost: 0,
+  bassPattern: [0, 3, 5, 3, 0, 3, 7, 3],   // bass notes (pentatonic)
+  melodyNotes: [0, 2, 4, 2, 5, 4, 2, 0, 3, 5, 7, 5, 4, 2, 1, 0], // playful melody
+  drumPattern: [1,0,0,0, 0,1,0,0, 1,0,0,0, 0,1,0,0],  // kick+snare
+  step: 0,
+  intervalId: null,
+
+  // Pentatonic scale (C major pentatonic - happy & safe)
+  scale: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99],
+
+  init() {
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(e) { return false; }
+    return true;
+  },
+
+  start() {
+    if (!this.ctx) { if (!this.init()) return; }
+    if (this.playing) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    this.playing = true;
+    this.bpm = 110;
+    this.step = 0;
+    this.scheduleNext();
+  },
+
+  stop() {
+    this.playing = false;
+    if (this.intervalId) { clearTimeout(this.intervalId); this.intervalId = null; }
+  },
+
+  setCombo(c) {
+    this.comboBoost = Math.min(c, 10) * 2;
+  },
+
+  scheduleNext() {
+    if (!this.playing) return;
+    const baseInterval = (60000 / (this.bpm + this.comboBoost)) / 4;
+    this.playStep();
+    this.step++;
+    this.intervalId = setTimeout(() => this.scheduleNext(), baseInterval);
+  },
+
+  playStep() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const beat = this.step % 16;
+
+    // ===== BASS =====
+    if (beat % 4 === 0) {
+      const bassIdx = this.bassPattern[Math.floor(this.step / 4) % this.bassPattern.length];
+      const freq = this.scale[bassIdx % this.scale.length] / 2;
+      this.playNote(freq, 'triangle', t, 0.12, 0.25);
+      this.playNote(freq * 2, 'sine', t, 0.06, 0.15);
+    }
+
+    // ===== DRUMS =====
+    if (this.drumPattern[beat]) {
+      // Kick drum (low thump)
+      this.playNoise(t, 0.08, 80, 40, 0.3);
+      if (beat === 0 || beat === 8) {
+        // Extra punch on 1st beat
+        this.playNoise(t, 0.1, 100, 30, 0.2);
+      }
+    }
+    if (beat % 4 === 2) {
+      // Snare/clap
+      this.playNoise(t, 0.06, 2000, 500, 0.15);
+    }
+    // Hi-hat on 8th notes
+    if (beat % 2 === 1) {
+      this.playNoise(t, 0.03, 8000, 4000, 0.05);
+    }
+
+    // ===== MELODY =====
+    if (beat % 4 === 0) {
+      const melIdx = this.melodyNotes[Math.floor(this.step / 2) % this.melodyNotes.length];
+      const freq = this.scale[melIdx % this.scale.length];
+      // Play two harmony notes for fullness
+      this.playNote(freq, 'square', t, 0.08, 0.12);
+      this.playNote(freq * 1.5, 'sine', t, 0.04, 0.15);
+      // Grace note for fun
+      if (beat % 8 === 0) {
+        this.playNote(freq * 2, 'sine', t + 0.06, 0.03, 0.08);
+      }
+    }
+
+    // ===== ARPEGGIO (quick ascending) =====
+    if (beat % 8 === 3 || beat % 8 === 7) {
+      for (let i = 0; i < 3; i++) {
+        const arpFreq = this.scale[2 + i * 2] * (0.5 + beat * 0.01);
+        this.playNote(arpFreq, 'sine', t + i * 0.04, 0.03, 0.06);
+      }
+    }
+
+    // ===== COMBO RUSH =====
+    if (this.comboBoost > 4 && beat % 2 === 0) {
+      const rushFreq = this.scale[5 + Math.floor(Math.random() * 3)];
+      this.playNote(rushFreq * 2, 'sine', t, 0.02, 0.1);
+    }
+  },
+
+  // Synthesizer: play a tone
+  playNote(freq, type, startTime, duration, volume) {
+    const ctx = this.ctx;
+    if (!ctx || freq < 20 || freq > 5000) return;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, startTime);
+
+    // Envelope
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(volume, startTime + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.05);
+  },
+
+  // Synthesizer: noise (for drums)
+  playNoise(startTime, duration, freqHigh, freqLow, volume) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freqHigh, startTime);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(freqLow, 20), startTime + duration);
+
+    gain.gain.setValueAtTime(volume, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.05);
+  }
+};
+
+// =============================================
+// MUSIC CONTROLS
+// =============================================
+document.addEventListener('click', () => {
+  if (!Music.ctx) Music.init();
+  if (Music.ctx && Music.ctx.state === 'suspended') Music.ctx.resume();
+}, { once: true });
+
+document.getElementById('musicBtn').addEventListener('click', function() {
+  if (Music.playing) {
+    Music.stop();
+    this.classList.remove('on');
+    this.innerHTML = '<span class="note">🎵</span> 音乐';
+  } else {
+    Music.start();
+    this.classList.add('on');
+    this.innerHTML = '<span class="note">🔊</span> 音乐';
+  }
+});
+
+// Play merge/score sound effects
+function playMergeSound(index) {
+  if (!Music.ctx || !Music.playing) return;
+  const freq = Music.scale[Math.min(index + 2, Music.scale.length - 1)];
+  Music.playNote(freq, 'sine', Music.ctx.currentTime, 0.15, 0.2);
+  Music.playNote(freq * 2, 'square', Music.ctx.currentTime + 0.05, 0.1, 0.1);
+  Music.setCombo(combo);
+}
+
+function playDropSound() {
+  if (!Music.ctx || !Music.playing) return;
+  Music.playNote(220, 'triangle', Music.ctx.currentTime, 0.08, 0.08);
+}
+
+function playGameOverSound() {
+  if (!Music.ctx || !Music.playing) return;
+  for (let i = 0; i < 4; i++) {
+    setTimeout(() => {
+      const freq = 400 - i * 80;
+      Music.playNote(freq, 'square', Music.ctx.currentTime, 0.2, 0.1);
+    }, i * 150);
+  }
+}
+
+// Hook into game events
+const origDrop = dropFruit;
+dropFruit = function(x) {
+  origDrop(x);
+  setTimeout(playDropSound, 50);
+};
+
+// Update combo tracking to affect music tempo
+const origUpdateScore = updateScore;
+updateScore = function() {
+  origUpdateScore();
+  if (combo > 1) Music.setCombo(combo);
+};
+
+// =============================================
+// INIT
+// =============================================
+document.getElementById('nextFruit').textContent = FRUITS[nextIndex].emoji;
+if (bestScore > 0) {
+  document.getElementById('bestScore').textContent = `🏆 最高记录: ${bestScore}`;
+}
+gameLoop();
+
+// Handle resize
+window.addEventListener('resize', () => {
+  resize();
+  createWalls();
+});
+</script>
+</body>
+</html>
