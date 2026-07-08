@@ -290,14 +290,7 @@ function handleCollision(event) {
       Body.setAngularVelocity(newBody, (Math.random() - 0.5) * 0.1);
       // Play merge sound!
       playMergeSound(newIndex);
-      // Disable collision briefly to let it fall out of overlaps
-      newBody.collisionFilter = { group: -1, category: 0x0001, mask: 0x0000 };
-      setTimeout(() => {
-        if (newBody && Composite.get(world, newBody.id)) {
-          newBody.collisionFilter = { group: 0, category: 0x0001, mask: 0xFFFF };
-        }
-      }, 100);
-      Composite.add(world, newBody);
+            Composite.add(world, newBody);
       fruits.push(newBody);
 
       const earned = FRUITS[newIndex].score;
